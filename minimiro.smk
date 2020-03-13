@@ -94,7 +94,7 @@ rule RepeatMasker:
 		mem=8,
 	threads:8
 	shell:"""
-module load RepeatMasker/4.1.0
+module load perl/5.14.2 RepeatMasker/3.3.0
 RepeatMasker \
 	-species human \
 	-dir $(dirname {input.fasta}) \
@@ -109,12 +109,20 @@ rule DupMasker:
 		out = rules.RepeatMasker.output.out,
 	output:
 		dups = "temp/{SM}_{SEQ}.fasta.duplicons",
-		dupcolor = "temp/{SM}_{SEQ}.fasta.duplicons",
 	shell:"""
+module load perl/5.14.2 RepeatMasker/3.3.0
 DupMasker {input.fasta}
-{SDIR}/scripts/DupMask_parserV6.pl -i {ouput.dups} -E -o {ouput.dupcolor}
-#/net/eichler/vol26/7200/software/legacy/inhousebin/DupMask_parserV6.pl -i {ouput.dups} -E -o {ouput.dupcolor}
 """
+
+rule DupMaskerColor:
+	input:
+		dups = rules.DupMasker.output.dups,
+	output:
+		dupcolor = "temp/{SM}_{SEQ}.fasta.duplicons.extra",
+	shell:"""
+{SDIR}/scripts/DupMask_parserV6.pl -i {input.dups} -E -o {output.dupcolor}
+"""
+		
  
 def get_score(wildcards):
 	return( int(str(wildcards.SCORE)))
@@ -138,6 +146,7 @@ rule minimiro:
 	input:
 		paf = rules.minimap2.output.paf,
 		rmout = expand("temp/{{SM}}_{SEQ}.fasta.out", SEQ=SEQS),
+		dmout = expand("temp/{{SM}}_{SEQ}.fasta.duplicons.extra", SEQ=SEQS),
 	output:
 		ps	= "minimiro_smk_out/{SM}_{SCORE}_aln.ps",
 		pdf	= "minimiro_smk_out/{SM}_{SCORE}_aln.pdf",
@@ -145,6 +154,7 @@ rule minimiro:
 	shell:"""
 {SDIR}/minimiro.py --paf {input.paf} \
 	--rm {input.rmout} \
+	--dm {input.dmout} \
 	--bestn 1000 \
 	-o {output.ps} && \
 	ps2pdf {output.ps} {output.pdf}

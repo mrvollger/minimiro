@@ -1,6 +1,9 @@
 #!/bin/env perl
 
-
+#Mitchell Vollger
+# 2020 03 13 removed eichler dependancies 
+#
+#
 #Zhaoshi Jiang
 #add newHeader as ancestor reference file
 #1-28-08 add function of HexTRgb color conversion function and chang color to Cytoband
@@ -34,6 +37,9 @@ use Getopt::Std;
 
 use List::Util 'min';
 use List::Util 'max';
+use File::Basename;
+my $dirname = dirname(__FILE__);
+#print "$dirname\n";
 
 use vars qw ($opt_i $opt_o $opt_B $opt_c $opt_C $opt_w $opt_f $opt_F $opt_e  $opt_s $opt_S $opt_h $opt_E $opt_A $opt_R);
 
@@ -60,19 +66,19 @@ $opt_S ||=400000; #the frag size for each fasta 400k(hg17) or 500k (PTR2,MMU2)
 
 if(defined ($opt_B)) { #colored by cytoband
 
-$opt_c ||="/net/eichler/vol26/7200/software/legacy/inhousebin/DupMask_parserV6/cytoBandColor";
+$opt_c ||="$dirname/DupMask_parserV6/cytoBandColor";
 
 }
 
 
 else { #colored by subunits
 
-$opt_c ||="/net/eichler/vol26/7200/software/legacy/inhousebin/DupMask_parserV6/r.all.repeat.10K.nr.Color";
+$opt_c ||="$dirname/DupMask_parserV6/r.all.repeat.10K.nr.Color";
 
 
 }
 
-$opt_L ||="/net/eichler/vol26/7200/software/legacy/inhousebin/DupMask_parserV6/bd35ChrSize";
+$opt_L ||="$dirname/DupMask_parserV6/bd35ChrSize";
 $opt_C ||=0; #range force to chain
 
 ####################################
@@ -720,8 +726,8 @@ sub true_start_orient2 { #3-12-07 for whole genome data chr*_001
 	}
 
 	else {
-
-		($chr,$fragN)=split("_",$chr_fragN);
+		# MRV added the very long "___________" to avoid splitting conitgs names on just "_"
+		($chr,$fragN)=split("_____________________",$chr_fragN);
 
 
 	}
