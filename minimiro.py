@@ -28,6 +28,7 @@ parser.add_argument("--paf", help="plot PAF alignment from minimap2, must have c
 parser.add_argument("-o", "--out", help="output file", type=argparse.FileType('w') )
 parser.add_argument("--rm", nargs="+", help="repeatmasker .out file, can be a list of files", default=[])
 parser.add_argument("--dm", nargs="+", help="dupmakser file, parsed to add color,  can be a list of files", default=[])
+parser.add_argument("--bed", nargs="+", help="Must be bed 6 format", default=[])
 parser.add_argument("-x", "--preset", help="[asm20]", default="map-ont")
 parser.add_argument("-t", "--threads", help="[4]", type=int, default=4)
 parser.add_argument("-n", "--bestn", help="[100]", type=int, default=100)
@@ -156,10 +157,17 @@ An Alignment object can be converted to a string with str() in the following for
 segs = []
 
 if(args.paf):
+	#
+	# READ IN MINIMAP2 PAF
+	#
 	firstcol = ["q_ctg", "q_len", "q_st", "q_en", "strand", "ctg", "ctg_len", "r_st", "r_en", "match", "span", "mapq"]
 	pd_in = [[] for x in range(len(firstcol)+1)]
 	for line in open(args.paf):
 		tokens = line.strip().split()
+		# skip alignments with low scores
+		if(int(tokens[9]) < args.score ):
+			continue 
+		# parse the paf input 
 		for idx, token in enumerate(tokens):
 			if(idx < len(firstcol)):
 				try:
@@ -179,7 +187,6 @@ if(args.paf):
 	paf["strand"].replace({"+":1, "-":-1}, inplace=True)
 	
 	#print(paf) 
-
 	for idx, row in paf.iterrows():
 		cs = re.match("cs:Z:(\S+)", row["cs"])
 		assert cs, "Must have cs string, line {}".format(idx+1)
@@ -218,7 +225,7 @@ elif(args.r):
 			#print(segs)
 else:
 	sys.stderr.write("Needs ref and query or paf input!")
-	exit()
+	exit(1)
 
 #
 # PARSE MINIMAP FOR MIROPEATS
@@ -235,8 +242,8 @@ segs.q_en = segs.q_en - args.start
 segs.q_len = segs.q_len - args.start
 
 segs = segs[ (segs.r_en >= 0) & (segs.q_en >= 0) ]
-segs.r_st[segs.r_st < 0] = 0 
-segs.q_st[segs.q_st < 0] = 0 
+segs.loc[segs.r_st < 0, ["r_st"]] = 0 
+segs.loc[segs.q_st < 0, ["q_st"]] = 0 
 
 # set up contig sizes 
 contigs = pd.DataFrame( [ tuple(x) + (1,) for x in segs[["r_ctg","r_len"]].drop_duplicates().values] + [ tuple(x) +(0,) for x in segs[["q_ctg","q_len"]].drop_duplicates().values], columns=["ctg", "len", "ref"] )
@@ -309,7 +316,6 @@ if(len(args.rm) > 0):
 	rm = pd.concat(rms, ignore_index=True) 
 	rm = rm[rm.q_ctg.isin(contigs.ctg)]
 
-
 	rm.q_st = rm.q_st - args.start
 	rm.q_en = rm.q_en - args.start
 	rm = rm[rm.q_st >= 0]
@@ -370,6 +376,39 @@ if(len(args.dm) > 0):
 	DM += "Black\n"
 else:
 	DM = ""
+
+#
+# Read in genes
+#
+def get_bed_end(strand):
+	if(strand in ["+", "F"]):
+		return("RIGHT_end")
+	return("LEFT_end")
+
+if(len(args.bed) > 0):
+	beds = []
+	for fbed in args.bed:
+		beds.append( pd.read_csv(fbed, delim_whitespace=True, names = ["chr", "start", "end", "name", "score", "strand"]))
+	bed = pd.concat(beds, ignore_index=True) 
+	bed = bed[bed["chr"].isin(contigs.ctg)]
+	bed["y"] = bed["chr"].map(get_contig_num) + 0.14
+	bed["func"] = bed.strand.map(get_bed_end)
+	
+	BED = ""
+	offset = 0
+	for name, group in bed.groupby("name"):
+		BED += "{} {} {} {} draw_line\n".format(min(group.start), row.y+offset + 0.025 , max(group.end), row.y+offset+ 0.025)
+		for idx, row in group.iterrows():
+			if(row.end < get_contig_len( row["chr"] ) ):
+				BED += "{} {} {} {}\n".format(row.y + offset , row.start, row.end, row.func)
+		
+		BED += "{} {} ({}) printname_right_2\n".format( max(group.end), row.y + offset + 0.015, name)
+		
+		offset += 0.03
+	#print(bed)
+	#print(bed[bed["name"] =="AK6"])
+else:
+	BED=""
 
 
 #
@@ -531,6 +570,19 @@ leftmargin bottommargin translate
 
 }} def
 
+/printname_right_2 {{
+        /name1 exch def
+        /height1 exch def
+        /end1 exch def
+        /y1 drop height1 mul def
+        /x1 end1 xstretch div cm def
+        0.1 x1 add y1 moveto
+        %0 8 -2 div rmoveto
+        name1 50 string cvs show
+
+}} def
+
+
 /printname_left {{
         /name1 exch def
         /height1 exch def
@@ -538,6 +590,21 @@ leftmargin bottommargin translate
         0 y1 moveto
         name1 100 string cvs show
 
+}} def
+
+/draw_line {{                                                                                                                                               
+        /height2 exch def
+        /end2 exch def
+        /height1 exch def
+        /end1 exch def
+        /y1 drop height1 mul def
+        /x1 end1 xstretch div cm def
+        /y2 drop height2 mul def
+        /x2 end2 xstretch div cm def
+        0.1 setlinewidth
+        x1 y1 newpath moveto
+        x2 y2 lineto
+        stroke
 }} def
 
 
@@ -701,6 +768,9 @@ leftmargin bottommargin translate
 % DRAW DUPMASKER
 {DM}
 
+% ------------------------------------------------
+% DRAW BED
+{BED}
 
 % ------------------------------------------------
 % DRAW AXIS AND TICKS
