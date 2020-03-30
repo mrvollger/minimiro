@@ -1,6 +1,22 @@
+#
+# REFERENCE FASTA FILE, IN MOST CASES THIS WILL BE HG38
+#
 REF=/net/eichler/vol26/home/mvollger/projects/minimiro/data/hg38.fa
-GENES=/net/eichler/vol26/home/mvollger/projects/minimiro/data/hg38.genes.bed  # must be bed12 format with genes 
+
+#
+# GENE MODELS IN BED 12 FORMAT ON THE REFERENCE FASTA FILE
+#
+GENES=/net/eichler/vol26/home/mvollger/projects/minimiro/data/hg38.genes.bed 
+# if you only wanted to use genes from a subset of hg38 you could make a smaller genes file with this command:
+# bedtools intersect -wa -a /net/eichler/vol26/home/mvollger/projects/minimiro/data/hg38.genes.bed -b <( printf "chr8\t6000000\t14000000\n") > def.bed 
+
+
+#
+# QUERY FASTA TO WHICH YOU WOULD LIKE TO ALIGN GENE MODELS
+#
 QUERY=/net/eichler/vol26/projects/koren_hifi_asm/nobackups/koren_asm_2020_01_06/chm13_hicanu_hifi_20k.fasta
+
+
 THREADS=64
 MAXGB=64
 
