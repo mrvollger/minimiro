@@ -10,6 +10,7 @@ minimiro.py --paf {input.paf} --bestn 1000 -o {output.ps} && ps2pdf {output.ps}
 ```
 ## Anotation pipeline usage 
 
+### config 
 First make a file called `minimiro.yaml` that looks like this:
 ```
 scores:  # minimum score threshold to plot, can specify multiple and it will make multiple pdfs
@@ -28,3 +29,8 @@ DEF_hg38_vs_CHM13: # run name for this comparison, will name output accordingly
     rc: False # if set to True the query will be reverse complemened before displaying
 ```
 
+### Execution 
+```snakemake -j 200 -p -s /path/to/github/repo/minimiro.smk```
+
+### Example output
+```/net/eichler/vol26/projects/koren_hifi_asm/nobackups/SMN_hicanu/DEF_test/```
