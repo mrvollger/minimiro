@@ -7,7 +7,7 @@ minimap2 -x asm20 -s {SCORE} -p 0.01 -N 1000 --cs {input.ref} {input.query} > {o
 minimiro.py --paf {input.paf} --bestn 1000 -o {output.ps} && ps2pdf {output.ps}
 ```
 
-## Usage: anotation pipeline 
+## Usage: annotation pipeline 
 
 ### Configuration 
 First make a file called `minimiro.yaml` that looks like this:
@@ -31,6 +31,10 @@ DEF_hg38_vs_CHM13: # run name for this comparison, will name output accordingly
 
 ### Execution 
 ```snakemake -j 200 -p -s /path/to/github/repo/minimiro.smk```
+If you don't want to clone the repo for you project you can use my local copy `/net/eichler/vol26/home/mvollger/projects/minimiro/minimiro.smk
+` but use at your own risk because there will likely be modifications. 
+
+
 
 ### Example output
 ```/net/eichler/vol26/projects/koren_hifi_asm/nobackups/SMN_hicanu/DEF_test/```
