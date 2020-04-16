@@ -30,7 +30,11 @@ DEF_hg38_vs_CHM13: # run name for this comparison, will name output accordingly
 
 
 ### Execution 
-```snakemake -j 200 -p -s /path/to/github/repo/minimiro.smk```
+```
+git clone https://github.com/mrvollger/minimiro.git
+snakemake -j 200 -p -s /path/to/github/repo/minimiro.smk
+```
+
 If you don't want to clone the repo for you project you can use my local copy `/net/eichler/vol26/home/mvollger/projects/minimiro/minimiro.smk
 ` but use at your own risk because there will likely be modifications. 
 
