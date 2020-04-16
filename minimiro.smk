@@ -4,10 +4,13 @@ import re
 import re
 import pandas as pd 
 
+
+
 configfile: "minimiro.yaml"
 SDIR=os.path.dirname(workflow.snakefile)
 DEBUG=True
 
+shell.prefix(f"source {SDIR}/env.cfg ; set -eo pipefail; ")
 
 SMS = list(config.keys())
 SEQS=["ref", "query"]
@@ -101,8 +104,8 @@ rule RepeatMasker:
 		mem=8,
 	threads:8
 	shell:"""
-module load RepeatMasker/4.1.0
 RepeatMasker \
+	-e ncbi \
 	-species human \
 	-dir $(dirname {input.fasta}) \
 	-pa {threads} \
@@ -118,7 +121,6 @@ rule DupMasker:
 		dups = "temp/{SM}_{SEQ}.fasta.duplicons",
 	threads:1
 	shell:"""
-module load RepeatMasker/4.1.0
 DupMasker -engine ncbi \
 	{input.fasta}
 """
