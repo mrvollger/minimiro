@@ -2,15 +2,15 @@
 
 
 
-## Simple Usage
+## Usage: simple, no annotations
 ```
 minimap2 -x asm20 -s {SCORE} -p 0.01 -N 1000 --cs {input.ref} {input.query} > {output.paf}
 
 minimiro.py --paf {input.paf} --bestn 1000 -o {output.ps} && ps2pdf {output.ps}
 ```
-## Anotation pipeline usage 
+## Usage: anotation pipeline 
 
-### config 
+### Configuration 
 First make a file called `minimiro.yaml` that looks like this:
 ```
 scores:  # minimum score threshold to plot, can specify multiple and it will make multiple pdfs
