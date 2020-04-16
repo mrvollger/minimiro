@@ -28,7 +28,7 @@ parser.add_argument("--paf", help="plot PAF alignment from minimap2, must have c
 parser.add_argument("-o", "--out", help="output file", type=argparse.FileType('w') )
 parser.add_argument("--rm", nargs="+", help="repeatmasker .out file, can be a list of files", default=[])
 parser.add_argument("--dm", nargs="+", help="dupmakser file, parsed to add color,  can be a list of files", default=[])
-parser.add_argument("--bed", nargs="+", help="Must be bed 6 format", default=[])
+parser.add_argument("--bed", nargs="+", help="Must be bed 12 format", default=[])
 parser.add_argument("-x", "--preset", help="[asm20]", default="map-ont")
 parser.add_argument("-t", "--threads", help="[4]", type=int, default=4)
 parser.add_argument("-n", "--bestn", help="[100]", type=int, default=100)
@@ -62,7 +62,7 @@ def high_scoring_segs(hit, cs, q_ctg, q_ctg_len):
 
 	r_st = hit.r_st
 	q_st = hit.q_st; q_en = hit.q_en
-	if(hit.strand == -1 ): q_st = hit.q_en; q_en = hit.q_st
+	if(hit.strand == -1 ): q_st = hit.q_en; q_en = hit.q_st;
 
 	score = 0
 	i_max = 0
@@ -75,7 +75,7 @@ def high_scoring_segs(hit, cs, q_ctg, q_ctg_len):
 	
 	# if we are passing a paf, plot them exactly and do not apply the segment algorithum
 	if(args.paf):
-		rtn.append((hit.ctg, hit.r_st, hit.r_en, hit.ctg_len, q_ctg, hit.q_st, hit.q_en, q_ctg_len))
+		rtn.append((hit.ctg, hit.r_st, hit.r_en, hit.ctg_len, q_ctg, q_st, q_en, q_ctg_len))
 		return(rtn)
 
 	total = len(cs)
@@ -382,31 +382,64 @@ else:
 #
 def get_bed_end(strand):
 	if(strand in ["+", "F"]):
-		return("RIGHT_end")
-	return("LEFT_end")
+		return("RIGHT_end2")
+	return("LEFT_end2")
+
+def intersect(a1, a2, b1, b2):
+	return( a1 <= b2 and b1 <= a2 )
+
+def get_offset(a1,a2, gene, seen, ngenes):
+	rightmost = max(contigs["len"])
+	a2 = a2 + len(gene)*rightmost/100
+	ADDED=False
+	for offset in seen:
+		CANADD = True
+		for b1, b2 in seen[offset]:
+			if( intersect(a1,a2, b1,b2) ): CANADD = False
+		if(CANADD):
+			seen[offset].append((a1,a2))
+			ADDED = True
+			return(offset)	
+
+	if(not ADDED):
+		off = 0.02 * len(seen) 
+		if(off < 1):
+			seen[off] = [(a1,a2)]
+			return(off)
+		else:
+			seen[1].append((a1,a2))
+			return(1)	
 
 if(len(args.bed) > 0):
 	beds = []
 	for fbed in args.bed:
-		beds.append( pd.read_csv(fbed, delim_whitespace=True, names = ["chr", "start", "end", "name", "score", "strand"]))
+		beds.append( pd.read_csv(fbed, delim_whitespace=True, names = ["chr", "start", "end", "name", "score", "strand",
+			"thickStart", "thickEnd", "itemRgb", "blockCount", "blockSizes", "blockStarts"]))
 	bed = pd.concat(beds, ignore_index=True) 
 	bed = bed[bed["chr"].isin(contigs.ctg)]
 	bed["y"] = bed["chr"].map(get_contig_num) + 0.14
 	bed["func"] = bed.strand.map(get_bed_end)
 	
-	BED = ""
-	offset = 0
-	for name, group in bed.groupby("name"):
-		BED += "{} {} {} {} draw_line\n".format(min(group.start), row.y+offset + 0.025 , max(group.end), row.y+offset+ 0.025)
-		for idx, row in group.iterrows():
-			if(row.end < get_contig_len( row["chr"] ) ):
-				BED += "{} {} {} {}\n".format(row.y + offset , row.start, row.end, row.func)
-		
-		BED += "{} {} ({}) printname_right_2\n".format( max(group.end), row.y + offset + 0.015, name)
-		
-		offset += 0.03
-	#print(bed)
-	#print(bed[bed["name"] =="AK6"])
+	# make font smaller
+	BED = "/Helvetica findfont 5 scalefont setfont\n"
+	for contig_n, contig in bed.groupby("chr"):
+		offset = 0; seen = {}; ngenes = len(contig.index)
+		for name, group in contig.groupby("name"):
+			group = group.sample(frac=1).reset_index(drop=True)
+			for idx, row in group.iterrows():
+				if(row.end < get_contig_len( row["chr"] ) ):
+					if(True):
+						starts = [ row.start + int(x) for x in row["blockStarts"].strip(",").split(",") ]
+						ends = [ start + int(x) for start, x in zip(starts, row["blockSizes"].strip(",").split(",")) ] 
+						offset = get_offset(min(starts), max(ends), name, seen, ngenes)
+						#print(offset)		
+						for start, end in zip(starts, ends): BED += "{} {} {} {}\n".format(row.y + offset , start, end, row.func)
+						BED += "{} {} {} {} draw_line\n".format(min(starts), row.y+offset+.01, max(ends), row.y+offset+.01 )
+						BED += "{} {} ({}) printname_right_2\n".format( max(ends), row.y + offset, name)
+		#print(seen)	
+			
+	# restore font size
+	BED += "/Helvetica-Bold findfont 13 scalefont setfont\n"
 else:
 	BED=""
 
@@ -673,10 +706,10 @@ leftmargin bottommargin translate
    /start1 exch def
    /number1 exch def
    /y1 drop number1 mul def
-   /y2 y1 6 add def
+   /y2 y1 4 add def
    /x1 start1 xstretch div cm def
    /x2 end1 xstretch div cm def
-   /ym y1 3 add def
+   /ym y1 2 add def
    newpath x1 y1 moveto x2 ym lineto x1 y2 lineto  x1 y1 lineto
    closepath
    fill stroke
@@ -705,10 +738,10 @@ leftmargin bottommargin translate
    /start1 exch def
    /number1 exch def
    /y1 drop number1 mul def
-   /y2 y1 6 add def
+   /y2 y1 4 add def
    /x1 start1 xstretch div cm def
    /x2 end1 xstretch div cm def
-   /ym y1 3 add def
+   /ym y1 2 add def
    newpath x1 ym moveto x2 y2 lineto x2 y1 lineto  x1 ym lineto
    closepath
    fill stroke
