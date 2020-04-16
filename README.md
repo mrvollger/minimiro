@@ -1,13 +1,12 @@
 # minimiro
 
-
-
 ## Usage: simple, no annotations
 ```
 minimap2 -x asm20 -s {SCORE} -p 0.01 -N 1000 --cs {input.ref} {input.query} > {output.paf}
 
 minimiro.py --paf {input.paf} --bestn 1000 -o {output.ps} && ps2pdf {output.ps}
 ```
+
 ## Usage: anotation pipeline 
 
 ### Configuration 
@@ -28,6 +27,7 @@ DEF_hg38_vs_CHM13: # run name for this comparison, will name output accordingly
         - glchr8v8:6000000-13500000
     rc: False # if set to True the query will be reverse complemened before displaying
 ```
+
 
 ### Execution 
 ```snakemake -j 200 -p -s /path/to/github/repo/minimiro.smk```
