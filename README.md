@@ -1,5 +1,10 @@
 # minimiro
 
+## Install
+```
+https://github.com/mrvollger/minimiro.git
+```
+
 ## Usage: simple, no annotations
 ```
 minimap2 -x asm20 -s {SCORE} -p 0.01 -N 1000 --cs {input.ref} {input.query} > {output.paf}
@@ -31,7 +36,6 @@ DEF_hg38_vs_CHM13: # run name for this comparison, will name output accordingly
 
 ### Execution 
 ```
-git clone https://github.com/mrvollger/minimiro.git
 snakemake -j 200 -p -s /path/to/github/repo/minimiro.smk
 ```
 
