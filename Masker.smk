@@ -80,14 +80,17 @@ rule RepeatMasker:
 		#msk = tempd(FASTA_FMT + ".masked"),
 	resources:
 		mem=8,
+	log:
+		f"logs/RM.{SM}.{{ID}}.log",
 	threads:8
 	shell:"""
+echo "RM on {input.fasta}"
 RepeatMasker \
 	-e ncbi \
 	-species {SPECIES} \
 	-dir $(dirname {input.fasta}) \
 	-pa {threads} \
-	{input.fasta}
+	{input.fasta} &> {log}
 """
 
 
