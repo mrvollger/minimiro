@@ -139,6 +139,10 @@ Creates an additional Gene Feature Finding (gff) output file.
 
 Spawn this many processes for masking, default is 1
 
+=item -dupout
+
+Stop the program after generating dupout. The second half of the pipeline often fails in snakemake so this way we can split it into two jobs. 
+
 =back
 
 =head1 CONFIGURATION OVERRIDES
@@ -197,6 +201,7 @@ my @getopt_args = (
                     '-pa=i',
 					'-forceSearch',
                     '-engine=s',
+					'-dupout',
                     '-gff',
                     '-align'
 );
@@ -451,6 +456,15 @@ if ( !-e "$fastaFile.dupout" )
 {
   die "Could not generate $fastaFile.dupout\n";
 }
+
+#
+# end the pipeline if the goal is to only generate the dupoutfile
+#
+if($options{'dupout'}){
+  print "Exiting becasue -dupout specified and dupout has been created\n";
+  exit;
+}
+
 
 ##
 ## Read in annotations

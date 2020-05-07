@@ -106,23 +106,38 @@ RepeatMasker \
 """
 
 
-rule DupMasker:
+
+rule DupMaskerRM:
 	input:
 		fasta = FASTA_FMT,
 		out = rules.RepeatMasker.output.out,
 	output:
-		dups = tempd(FASTA_FMT + ".duplicons"),
 		dupout = tempd(FASTA_FMT + ".dupout"),
 	resources:
 		mem=8,
 	threads:32
 	shell:"""
 {SDIR}/bin/DupMaskerParallel \
-	-pa {threads} \
+	-pa {threads} -dupout \
 	-engine ncbi \
 	{input.fasta}
 """
 
+rule DupMasker:
+	input:
+		fasta = FASTA_FMT,
+		out = rules.RepeatMasker.output.out,
+		dupout = rules.DupMaskerRM.output.dupout,
+	output:
+		dups = tempd(FASTA_FMT + ".duplicons"),
+	resources:
+		mem=8,
+	threads:1
+	shell:"""
+{SDIR}/bin/DupMaskerParallel \
+	-engine ncbi \
+	{input.fasta}
+"""
 
 
 rule DupMaskerColor:
