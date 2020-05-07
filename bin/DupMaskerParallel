@@ -135,6 +135,10 @@ Produce alignments. These are stored in the output file.
 
 Creates an additional Gene Feature Finding (gff) output file.
 
+=item -pa  <value>
+
+Spawn this many processes for masking, default is 1
+
 =back
 
 =head1 CONFIGURATION OVERRIDES
@@ -190,7 +194,8 @@ my @getopt_args = (
                     '-version',       # print out the version and exit
                     '-maxDiv=i',      # maximal duplicon seed divergence
                     '-maxWidth=i',    # realignNonRepMaxWidth zj 5-10-07
-                    '-forceSearch',
+                    '-pa=i',
+					'-forceSearch',
                     '-engine=s',
                     '-gff',
                     '-align'
@@ -239,6 +244,16 @@ if ( $options{'version'} )
   print "$version\n";
   exit;
 }
+
+my $pa=1;
+if($options{'pa'})
+{
+	$pa=$options{'pa'};
+}
+
+  
+print "Using this many jobs: $pa\n";
+
 
 #
 # Resolve configuration settings using the following precedence: 
@@ -375,7 +390,7 @@ my $db = FastaDB->new(
 if ( $options{'forceSearch'} || !-e "$fastaFile.out" )
 {
   print "Searching for repeats...\n";
-  system( "$REPEATMASKER -engine $engine $fastaFile > /dev/null 2>&1" );
+  system( "$REPEATMASKER -pa $pa -engine $engine $fastaFile > /dev/null 2>&1" );
 } else
 {
   print "Using existing repeat annotations in $fastaFile.out\n";
@@ -403,7 +418,7 @@ if ( $options{'forceSearch'} || !-e "$fastaFile.dupout" )
 {
   print "Searching for duplicons...\n";
 
-  my $cmd = "$REPEATMASKER -pa 8 -engine $engine -nolow -lib $dupliconLib $tmpMaskedFile";
+  my $cmd = "$REPEATMASKER -pa $pa -engine $engine -nolow -lib $dupliconLib $tmpMaskedFile";
   print "$cmd\n" if ( $DEBUG );
   system( "$cmd > /dev/null 2>&1" );
 

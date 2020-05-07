@@ -36,7 +36,13 @@ wildcard_constraints:
 #
 # OUTPUTS
 #
-FASTA_FMT = f"temp/{SM}_{{ID}}.fasta"
+HOSTNAME = os.getenv("HOSTNAME")
+if("ocelot" in HOSTNAME):
+	USER = os.getenv('USER')
+	FASTA_FMT = f"/tmp/{USER}/rm_temp/{SM}_{{ID}}.fasta"
+else:
+	FASTA_FMT = f"temp/{SM}_{{ID}}.fasta"
+
 DUP = f"{SM}_dupmasker.tbl"
 COLOR = f"{SM}_dupmasker_colors.tbl"
 RM = f"{SM}_repeatmasker.out"
@@ -89,12 +95,14 @@ rule RepeatMasker:
 echo "RM on {input.fasta}"
 RepeatMasker \
 	-xsmall \
-	-frag 10000000 \
 	-e ncbi \
 	-species {SPECIES} \
 	-dir $(dirname {input.fasta}) \
 	-pa {threads} \
 	{input.fasta} 
+	
+
+#-frag 10000000 \
 """
 
 
@@ -104,18 +112,17 @@ rule DupMasker:
 		out = rules.RepeatMasker.output.out,
 	output:
 		dups = tempd(FASTA_FMT + ".duplicons"),
-		#dupout = tempd(FASTA_FMT + ".dupout"),
+		dupout = tempd(FASTA_FMT + ".dupout"),
 	resources:
 		mem=8,
-	threads:8
+	threads:32
 	shell:"""
 {SDIR}/bin/DupMaskerParallel \
+	-pa {threads} \
 	-engine ncbi \
 	{input.fasta}
 """
-"""
-DupMasker \
-"""
+
 
 
 rule DupMaskerColor:
