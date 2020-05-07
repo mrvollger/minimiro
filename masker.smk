@@ -220,22 +220,20 @@ rule DupMaskerBed:
 
 		color = pd.concat(colors, ignore_index=True)
 
-		# these rows are no good, they come from contigs that have no results		
+		# these rows are no good, they come from contigs that have messed up results. fix TODO
 		bad= (color["chr"] == 0 ) & ( color["chrEnd"] == "#BEBEBE")
 		color.drop(color[bad].index, inplace = True)
 
 		color.sort_values(by=["chr", "chrStart"], inplace=True)
 
 		color["strand"] = "+"
-		color["strand"][ color["orient"] == "R" ] = "-"
+		color.loc[color["orient"] == "R", "strand"] = "-"
 
 		color["rgb"] = color["color"].map(hex_to_rgb)
 		color["score"] = 0
 
 		out = color[ ["chr", "chrStart", "chrEnd", "Repeat", "score", "strand", "rgb"] ]
 
-		print(out)
-			
 		out.to_csv(output["bed"], sep="\t", header=False, index=False)			
 
 			
