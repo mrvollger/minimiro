@@ -420,7 +420,8 @@ if ( $options{'forceSearch'} || !-e "$fastaFile.dupout" )
 
   my $cmd = "$REPEATMASKER -pa $pa -engine $engine -nolow -lib $dupliconLib $tmpMaskedFile";
   print "$cmd\n" if ( $DEBUG );
-  system( "$cmd > /dev/null 2>&1" );
+  system( "$cmd" );
+  #system( "$cmd > /dev/null 2>&1" );
 
   unless ( $DEBUG )
   {
