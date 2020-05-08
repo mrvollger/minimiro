@@ -28,6 +28,8 @@ SM = "asm"
 if("sample" in config): SM = config["sample"]
 SPECIES = "human"
 if("species" in config): SPECIES = config["species"]
+THREADS=16
+if("threads" in config): THREADS = config["threads"]
 
 wildcard_constraints:
 	SM=SM,
@@ -46,6 +48,7 @@ else:
 DUP = f"{SM}_dupmasker.tbl"
 COLOR = f"{SM}_dupmasker_colors.tbl"
 RM = f"{SM}_repeatmasker.out"
+RMBED = f"{SM}_repeatmasker.out.bed"
 BED = f"{SM}_dupmasker_colors.bed"
 MASKED = f"{SM}_rm_masked.fasta"
 
@@ -90,7 +93,7 @@ rule RepeatMasker:
 		mem=8,
 	log:
 		f"logs/RM.{SM}.{{ID}}.log",
-	threads:8
+	threads: int( THREADS / 2 )
 	shell:"""
 echo "RM on {input.fasta}"
 RepeatMasker \
@@ -115,7 +118,7 @@ rule DupMaskerRM:
 		dupout = tempd(FASTA_FMT + ".dupout"),
 	resources:
 		mem=8,
-	threads:32
+	threads: THREADS
 	shell:"""
 {SDIR}/bin/DupMaskerParallel \
 	-pa {threads} -dupout \
@@ -177,10 +180,33 @@ cat {input.msks} > {output.masked}
 """
 
 
+rule mergeRMbed:
+	input:
+		outs = expand( rules.RepeatMasker.output.out, ID=IDS, SM=SM),
+	output:
+		bed=RMBED,
+	run:
+		rms = []
+		for frm in input.outs:
+			sys.stderr.write( "\r" + frm )
+			rms.append( pd.read_csv(frm, delim_whitespace=True, header=None, skiprows=[0,1,2], comment="*",
+				names = ["score", "div", "del", "ins", "#contig", "start", "end",
+					 "q_left", "strand", "repeat", "class", "r_st", "r_en", "r_left", "id"]) )
+			
+		rm = pd.concat(rms, ignore_index=True)
+		
+		rm[['repeat_class','repeat_subclass']] = rm["class"].str.split("/", expand=True)
+		#print(rm[['repeat_class','repeat_subclass']])	
+		rm.repeat_subclass.fillna(value=".", inplace=True)
+		
+		rm.loc[rm.strand=="C", "strand"] = "-"
 
-
-
-
+		outcolumns = ["#contig", "start", "end", "repeat", "score", "strand", "repeat_class", 
+			"repeat_subclass", "div", "del", "ins", "q_left", "r_st", "r_en", "r_left"]
+		
+		rm = rm[outcolumns]	
+		rm.sort_values(by=["#contig", "start"], inplace=True)
+		rm.to_csv(output.bed, sep="\t", index=False)
 
 #
 # DupMakser merge output
