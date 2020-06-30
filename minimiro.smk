@@ -196,7 +196,7 @@ rule get_cds:
 				gene_id = t[3].split(".")[0]
 				if(gene_id in convert): 
 					t[3] = convert[gene_id]
-					rtn += (11*"{}\t" + "{}\n").format(*t)
+				rtn += (11*"{}\t" + "{}\n").format(*t)
 		open(output["bed12"], "w+").write(rtn)
 		shell("bedtools bed12tobed6 -i {output.bed12} > {output.bed}")
 		
