@@ -407,8 +407,10 @@ def get_offset(a1,a2, gene, seen, ngenes):
 			seen[off] = [(a1,a2)]
 			return(off)
 		else:
-			seen[1].append((a1,a2))
-			return(1)	
+			if(0.98 not in seen):
+				seen[0.98] = []
+			seen[0.98].append((a1,a2))
+			return(0.98)	
 
 if(len(args.bed) > 0):
 	beds = []
@@ -416,6 +418,7 @@ if(len(args.bed) > 0):
 		beds.append( pd.read_csv(fbed, delim_whitespace=True, names = ["chr", "start", "end", "name", "score", "strand",
 			"thickStart", "thickEnd", "itemRgb", "blockCount", "blockSizes", "blockStarts"]))
 	bed = pd.concat(beds, ignore_index=True) 
+	bed.drop_duplicates(subset=["chr", "start", "end", "name"], inplace=True)
 	bed = bed[bed["chr"].isin(contigs.ctg)]
 	bed["y"] = bed["chr"].map(get_contig_num) + 0.14
 	bed["func"] = bed.strand.map(get_bed_end)
