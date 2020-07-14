@@ -132,6 +132,18 @@ else
 fi
 """
 
+rule RepeatMaskerBed:
+	input:
+		out = rules.RepeatMasker.output.out,
+	output:
+		bed = tempd(FASTA_FMT + "_rm.bed"),
+	resources:
+		mem=8,
+	threads: 1
+	shell:"""
+RM2Bed.py -d $(dirname {output.bed}) {input.out}
+"""
+	
 
 
 rule DupMaskerRM:
@@ -250,12 +262,18 @@ head -n 3 {input.outs[0]} > {output.out}  && \
 
 rule mergeRMbed:
 	input:
-		outs = expand( rules.RepeatMasker.output.out, ID=IDS, SM=SM),
+		#outs = expand( rules.RepeatMasker.output.out, ID=IDS, SM=SM),
+		beds = expand( rules.RepeatMaskerBed.output.bed, ID=IDS, SM=SM),
 	output:
 		bed=RMBED,
 	resources:
 		mem=4,
 	threads: 1
+	shell:"""
+cat {input.beds} | bedtools sort -i - > {output.bed}
+"""
+	
+"""
 	run:
 		rms = []
 		for frm in input.outs:
@@ -278,7 +296,7 @@ rule mergeRMbed:
 		rm = rm[outcolumns]	
 		rm.sort_values(by=["#contig", "start"], inplace=True)
 		rm.to_csv(output.bed, sep="\t", index=False)
-
+"""
 
 #
 # Make a masked fasta
@@ -297,15 +315,17 @@ cat {input.msks} > {output.masked}
 
 rule masked_fasta:
 	input:
-		fasta = rules.rm_masked_fasta.output.masked, 
-		bed = TRFBED,
+		fasta = FASTA, 
+		trf = TRFBED,
+		rm = RMBED,
 	output:
 		fasta = MASKED
 	resources:
 		mem=8,
 	threads:1
 	shell:"""
-seqtk seq -M {input.bed} {input.fasta} > {output.fasta}
+cat {input.trf} {input.rm} | cut -f 1-3 | bedtools sort -i - | bedtools merge -i - | \
+	seqtk seq -M /dev/stdin {input.fasta} > {output.fasta}
 """
 		
 
