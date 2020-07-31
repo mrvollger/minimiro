@@ -21,7 +21,9 @@ def get_color(x):
 
 
 SEDEF_HEADER = "chr1   start1  end1    chr2    start2  end2    name    score   strand1 strand2 max_len aln_len comment aln_len.1 indel_a indel_b alnB    matchB  mismatchB   transitionsB     transversions   fracMatch       fracMatchIndel  jck     k2K     aln_gaps        uppercaseA      uppercaseB      uppercaseMatches        aln_matches  aln_mismatches  aln_gaps.1        aln_gap_bases   cigar   filter_score".strip().split()
+SEDEF_HEADER = "chr1   start1  end1    chr2    start2  end2    name    score   strand1 strand2 max_len aln_len comment indel_a indel_b alnB    matchB  mismatchB   transitionsB     transversions   fracMatch       fracMatchIndel  jck     k2K     aln_gaps        uppercaseA      uppercaseB      uppercaseMatches        aln_matches  aln_mismatches  aln_gaps.1        aln_gap_bases   cigar   filter_score".strip().split()
 DROP = ["aln_len.1", "aln_gaps.1", "cigar", "comment"]
+DROP = ["aln_gaps.1", "cigar", "comment"]
 
 # global var for inputs
 args=None 
@@ -54,7 +56,7 @@ if __name__ == "__main__":
 	# make bed 9 format for the browser 
 	df.sort_values(by=["chr1", "start1"], inplace=True)
 	bed9 = ["chr1", "start1", "end1", "name", "fakeScore", "strand1", "start1", "end1", "color"]
-	df["name"] = df.chr1 + ":" + df.start1.astype(str) + "-" + df.end1.astype(str)
+	df["name"] = df.chr2 + ":" + df.start2.astype(str) + "-" + df.end2.astype(str)
 	df["fakeScore"] = 0
 	extra = [ col for col in SEDEF_HEADER if col not in bed9 and col not in DROP]
 	df = df[bed9 + extra]

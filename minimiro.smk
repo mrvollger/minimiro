@@ -119,9 +119,9 @@ rule DupMasker:
 		out = rules.RepeatMasker.output.out,
 	output:
 		dups = "temp/{SM}_{SEQ}.fasta.duplicons",
-	threads:1
+	threads:8
 	shell:"""
-DupMasker -engine ncbi \
+DupMaskerParallel -pa {threads} -engine ncbi \
 	{input.fasta}
 """
 #-pa {threads} \
@@ -196,12 +196,12 @@ rule get_cds:
 				gene_id = t[3].split(".")[0]
 				if(gene_id in convert): 
 					t[3] = convert[gene_id]
-				rtn += (11*"{}\t" + "{}\n").format(*t)
+					rtn += (11*"{}\t" + "{}\n").format(*t)
 		open(output["bed12"], "w+").write(rtn)
 		shell("bedtools bed12tobed6 -i {output.bed12} > {output.bed}")
 		
 		# get all the cds seqeunces to map to the query 
-		shell("bedtools getfasta -name -split -fi {input.ref} -bed {output.bed12} > {output.fasta}")
+		shell("bedtools getfasta -s -name -split -fi {input.ref} -bed {output.bed12} > {output.fasta}")
 
 
 

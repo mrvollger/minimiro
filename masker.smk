@@ -5,6 +5,11 @@ import re
 import pysam 
 import pandas as pd
 from datetime import date
+from snakemake.remote.HTTP import RemoteProvider as HTTPRemoteProvider
+from snakemake.remote.FTP import RemoteProvider as FTPRemoteProvider
+FTP = FTPRemoteProvider()
+HTTP = HTTPRemoteProvider()
+
 today = date.today()
 DATE =  today.strftime("%Y/%m/%d")
 
@@ -21,8 +26,11 @@ def tempd(fname):
 #
 # INPUTS
 #
-SDs="/net/eichler/vol26/projects/sda_assemblies/nobackups/assemblies/hg38/ucsc.merged.mean.segdups.bed"
-HG38="/net/eichler/vol26/projects/sda_assemblies/nobackups/assemblies/hg38/ucsc.hg38.no_alts.fasta"
+#SDs="/net/eichLer/vol26/projects/sda_assemblies/nobackups/assemblies/hg38/ucsc.merged.mean.segdups.bed"
+SDs="ref/wgac.merged.bed"
+WGAC=HTTP.remote('http://humanparalogy.gs.washington.edu/build38/data/GRCh38GenomicSuperDup.tab')
+GRCH38=HTTP.remote("https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/405/GCF_000001405.39_GRCh38.p13/GRCh38_major_release_seqs_for_alignment_pipelines/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz")
+GFF=FTP.remote("ftp://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_34/gencode.v34.annotation.gff3.gz")
 FOFN="/net/eichler/vol27/projects/sequence_data/nobackups/human/CHM13/PacBioHiFi/20_kbp_insert_hifi_beta/fastq.fofn"
 SDADIR="/net/eichler/vol27/projects/hprc/nobackups/freeze1.0_assembly_eval/sda_collapse/software/centos7/SDA"
 
@@ -31,16 +39,20 @@ FAI = FASTA + ".fai"
 assert os.path.exists(FAI), f"Index must exist. Try: samtools faidx {FASTA}"
 
 # WILDCARDS
-IDS = [ "{:08}".format(ID+1) for ID in range(len(open(FAI).readlines())) ]
+NIDS = min(200, len(open(FAI).readlines()) )
+IDS = [ "{:08}".format(ID+1) for ID in range(NIDS) ]
 SM = "asm"
 if("sample" in config): SM = config["sample"]
 SPECIES = "human"
 if("species" in config): SPECIES = config["species"]
-THREADS=8
+THREADS=16
 if("threads" in config): THREADS = config["threads"]
 
+
+SMS = [SM]
+
 wildcard_constraints:
-	SM=SM,
+	SM="|".join(SMS),
 	ID="\d+",
 
 #
@@ -65,10 +77,11 @@ PAF = f"{SM}_to_hg38.paf"
 COL = f"sda_out/coverage/{SM}.collapses.bed"
 HTML = f"{SM}_sedef_out/SDs.browser.html"
 DELTA = f"nucmer_out/{SM}.delta",
+REF = 'ref/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna'
 
 workdir: "Masker"
 
-localrules: sda_collapse, run_sedef, sedef_browser, align_to_ref
+localrules: sda_collapse, run_sedef, sedef_browser, align_to_ref, liftoff, nucmer
 
 #
 # RULES
@@ -85,7 +98,49 @@ rule all:
 		paf = PAF, 
 		#collapse = COL,
 		html = HTML, 
+		ref = REF,
+		sds = SDs,
 		#delta=DELTA, 
+
+
+# zcat ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/405/GCF_000001405.39_GRCh38.p13/GRCh38_major_release_seqs_for_alignment_pipelines/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz | grep '>' | awk '{print $1}' | sed 's/>//g'
+rule get_hg38:
+	input:
+		fasta = GRCH38,
+	output:
+		fasta = tempd(REF),
+		fai = tempd(REF+'.fai'),
+	threads: 1
+	resources:
+		mem=8
+	shell:'''
+seqtk seq {input.fasta} > {output.fasta}
+samtools faidx {output.fasta}
+'''
+
+rule get_gff:
+	input:
+		gff = GFF,
+	output:
+		gff = tempd('ref/gencode.v34.primary_assembly.annotation.gff3'),
+	threads: 1
+	resources:
+		mem=8
+	shell:'''
+gunzip -c {input.gff} > {output.gff}
+'''
+
+rule get_wgac:
+	input:
+		WGAC
+	output:
+		tempd(SDs)
+	threads: 1
+	resources:
+		mem=8
+	shell:'''
+bedtools sort -i {input} | bedtools merge -i - > {output}
+'''
 
 rule split_fasta:
 	input:
@@ -97,9 +152,16 @@ rule split_fasta:
 		mem=8
 	run:
 		fasta = pysam.FastaFile(input["fasta"])
-		for out, name in zip(output["fastas"], fasta.references):
+		outs = [open(f,"w+") for f in output.fastas]
+		outidx = 0
+		for name in fasta.references:
 			seq = fasta.fetch(name)
-			open(out, "w+").write( ">{}\n{}\n".format(name, seq) )
+			outs[outidx].write( ">{}\n{}\n".format(name, seq) )
+			outidx += 1
+			if(outidx == NIDS): outidx = 0 
+
+		for out in outs: 
+			out.close()
 
 
 rule RepeatMasker:
@@ -194,14 +256,16 @@ rule DupMaskerColor:
 # trf rules 
 #
 rule trf:
-	input:
-		fasta = FASTA_FMT,
-	output:
-		dat = tempd(FASTA_FMT + ".dat")
-	resources:
-		mem=8,
-	threads: 1
-	shell:"""
+    input:
+        fasta = FASTA_FMT,
+    output:
+        dat = tempd(FASTA_FMT + ".dat")
+    benchmark:
+        FASTA_FMT + ".bench"
+    resources:
+        mem=24,
+    threads: 1
+    shell:"""
 trf {input.fasta} 2 7 7 80 10 50 15 -l 25 -h -ngs > {output.dat}
 """
 
@@ -210,6 +274,9 @@ rule trf_bed:
 		dats = expand(rules.trf.output.dat, ID=IDS, SM=SM),
 	output:
 		bed = TRFBED,
+	resources:
+		mem=8,
+	threads: 1
 	run:
 		trf = []
 		header = '#chr start end PeriodSize CopyNumber ConsensusSize PercentMatches PercentIndels Score A C G T Entropy Motif Sequence'.split()
@@ -266,12 +333,13 @@ rule mergeRMbed:
 		beds = expand( rules.RepeatMaskerBed.output.bed, ID=IDS, SM=SM),
 	output:
 		bed=RMBED,
+		fofn=temp(f"{SM}.rm.fofn"),
 	resources:
 		mem=4,
 	threads: 1
-	shell:"""
-cat {input.beds} | bedtools sort -i - > {output.bed}
-"""
+	run:
+		open(output.fofn, "w+").write("\n".join(input.beds) + "\n")
+		shell("while IFS= read -r line; do cat $line; done < {output.fofn} | bedtools sort -i - > {output.bed}")
 	
 """
 	run:
@@ -319,13 +387,25 @@ rule masked_fasta:
 		trf = TRFBED,
 		rm = RMBED,
 	output:
-		fasta = MASKED
+		bed = temp(f"{SM}.tmp.msk.bed"),
+		fasta = MASKED,
+		fai = MASKED+".fai",
 	resources:
 		mem=8,
 	threads:1
 	shell:"""
-cat {input.trf} {input.rm} | cut -f 1-3 | bedtools sort -i - | bedtools merge -i - | \
+# very it is very common to find a 27 base pair gap between alpha sat annotations
+# similarly it is commone to find a 49 bp gap in anotations in HSAT arrays
+# there for I merge some of the sat features from rm
+
+grep Alpha {input.rm} | bedtools merge -d 35 -i - > {output.bed}  
+grep HSAT {input.rm} | bedtools merge -d 75 -i - >> {output.bed}  
+cat {input.trf} {input.rm} | cut -f 1-3 >> {output.bed}  
+
+cut -f 1-3 {output.bed} | bedtools sort -i - | bedtools merge -i - | \
 	seqtk seq -M /dev/stdin {input.fasta} > {output.fasta}
+
+samtools faidx {output.fasta}
 """
 		
 
@@ -419,7 +499,7 @@ rule DupMaskerHTML:
 rule nucmer:    
 	input:
 		q = FASTA,
-		r = HG38,
+		r = REF,
 	output:
 		delta = DELTA
 	threads: 128
@@ -485,15 +565,15 @@ rule run_sedef:
 		fasta = MASKED,
 	output:
 		tmpf = temp(f"/tmp/mvollger/sedef/sedef_{SM}.fasta"),
+		fai = temp(f"/tmp/mvollger/sedef/sedef_{SM}.fasta.fai"),
 		bed = f"{SM}_sedef_out/final.bed"
 	resources:
-		mem=8,
-	threads: 80
+		mem=8
+	threads: 120
 	shell:"""
-module load boost/1.68.0
-PATH=/net/eichler/vol26/projects/koren_hifi_asm/nobackups/software/sedef:$PATH
-rm -f {output.tmpf} {output.tmpf}.fai
-sedef.sh -f -o $( dirname {output.bed} ) -j {threads} -t {output.tmpf} {input.fasta}
+cp {input.fasta} {output.tmpf} 
+samtools faidx {output.tmpf}
+sedef.sh -f -o $( dirname {output.bed} ) -j {threads} {output.tmpf}
 """
 
 
@@ -551,6 +631,24 @@ rule sedef_browser:
 		open(output["html"], "w+").write(html.format(DATE=DATE, SM=SM))
 		shell("{SDIR}/scripts/sedef_to_bed.py {input.bed} {output.bed} {output.lowid}")
 
+# unnessisary can calculate from uppercase matches.
+rule rm_count_sedef:
+	input:
+		rm = RMBED,
+		trf = TRFBED,
+		sedef = rules.sedef_browser.output.bed,
+	output:
+		bed = f"{SM}_sedef_rm_counted.bed"
+	resources:
+		mem=8,
+	threads: 1
+	shell:"""
+cat {input.trf} {input.rm} | cut -f 1-3 | bedtools sort -i - | bedtools merge -i - | \
+		bedtools coverage -header -a {input.sedef} -b - > {output.bed}
+sed -i '1{{s/$/\tcount_ovls\trm_bases\ttotal_bases\trm_coverage/}}' {output.bed}
+"""
+	
+
 rule sedef:
 	input:
 		rules.sedef_browser.output,
@@ -588,7 +686,7 @@ rule sda_collapse:
 rule align_to_ref:
 	input:
 		q = FASTA,
-		r = HG38,
+		r = REF,
 	output:
 		paf = PAF,
 	threads: 128
@@ -606,7 +704,7 @@ minimap2 -I 8G -2K 2000m -t {threads} \
 rule split_align:
 	input:
 		q = FASTA,
-		r = HG38,
+		r = REF,
 	output:
 		split = temp(f"split_alignments/{SM}.split.fasta"),
 		bam = f"split_alignments/{SM}.split.bam",
@@ -647,7 +745,7 @@ rule inter_sd:
 	input:
 		sd=SDs,
 		bed = rules.split_bed.output.bed,
-		fai = HG38 + ".fai",
+		fai = REF + ".fai",
 	output:
 		bed = f"split_alignments/{SM}.split.sd.bed",
 		nosd = f"split_alignments/{SM}.split.nosd.bed",
@@ -706,3 +804,87 @@ rule new_sd:
 bedtools makewindows -g {input.fai} -w 5000  | bedtools intersect -wb -a {input.sedef} -b - > {output.sdw}
 bedtools getfasta -fi {input.fasta} -bed {output.sdw} > {output.fasta}
 """
+
+
+
+#################################################################3
+# LIFTOFF
+#################################################################3
+
+
+rule liftoff:
+	input:
+		r = REF,
+		gff = rules.get_gff.output.gff,
+		t = FASTA,
+	output:
+		gff = "genes/{SM}.gff3",
+		unmapped = "genes/{SM}.unmapped.gff3",
+		temp = directory('genes/temp.{SM}')
+	threads: 32
+	resources:
+		mem=8,
+	shell:"""
+~mvollger/.local/bin/liftoff -dir {output.temp} -sc 0.95 -copies -p {threads} -r {input.r} -t {input.t} -g {input.gff} -o {output.gff} -u {output.unmapped}
+"""
+
+
+rule orf_gff:
+    input:
+        gff = rules.liftoff.output.gff,
+        fasta =  FASTA,
+    output:
+        gff="genes/{SM}.orf_only.gff3",
+    threads: 1
+    resources:
+        mem=8,
+    shell:"""
+gffread --adj-stop -C -F -g {input.fasta} {input.gff} \
+        | gffread --keep-comments -F -J -g {input.fasta} /dev/stdin \
+        | gffread --keep-comments -F -M -K /dev/stdin \
+        > {output.gff}
+"""
+
+rule orf_bb:
+    input:
+        gff = rules.orf_gff.output.gff,
+        fai = FASTA + ".fai",
+    output:
+        bb="genes/{SM}.orf_only.bb",
+        bed="genes/{SM}.orf_only.bed",
+    threads: 1
+    resources:
+        mem=8,
+    shell:"""
+{SDIR}/scripts/AddUniqueGeneIDs.py {input.gff} | \
+        gff3ToGenePred -geneNameAttr=gene_name -useName /dev/stdin /dev/stdout | \
+        genePredToBigGenePred /dev/stdin /dev/stdout | \
+        awk -F $'\t' '{{ t = $4; $4 = $13; $13 = t; print; }}' OFS=$'\t' | \
+        bedtools sort -i - > {output.bed} 
+
+bedToBigBed -extraIndex=name,name2 -type=bed12+7 -tab -as={SDIR}/templates/bigGenePred.as {output.bed} {input.fai} {output.bb}
+"""
+
+rule gff_index:
+	input:
+		rules.liftoff.output.gff
+	output:
+		gff = "genes/{SM}.gff3.gz",
+		tbi = "genes/{SM}.gff3.gz.tbi",
+	threads: 1
+	resources:
+		mem=8,
+	shell:'''
+bedtools sort -i {input} | bgzip > {output.gff}
+tabix {output.gff}
+'''
+
+rule genes:
+	input:
+		gffs = expand(rules.gff_index.output.gff, SM=[SM]),
+		orf = expand(rules.orf_gff.output, SM=[SM]),
+		bbs = expand(rules.orf_bb.output, SM=[SM]),
+
+
+
+
