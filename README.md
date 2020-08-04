@@ -2,7 +2,7 @@
 
 ## Install
 ```
-https://github.com/mrvollger/minimiro.git
+git clone https://github.com/mrvollger/minimiro.git
 ```
 
 ## Usage: simple, no annotations
@@ -13,6 +13,8 @@ minimiro.py --paf {input.paf} --bestn 1000 -o {output.ps} && ps2pdf {output.ps}
 ```
 
 ## Usage: annotation pipeline 
+
+## miropeats
 
 ### Configuration 
 First make a file called `minimiro.yaml` that looks like this:
@@ -33,7 +35,6 @@ DEF_hg38_vs_CHM13: # run name for this comparison, will name output accordingly
     rc: False # if set to True the query will be reverse complemened before displaying
 ```
 
-
 ### Execution 
 ```
 snakemake -j 200 -p -s /path/to/github/repo/minimiro.smk
@@ -45,4 +46,22 @@ If you don't want to clone the repo for you project you can use my local copy `/
 
 
 ### Example output
-```/net/eichler/vol26/projects/koren_hifi_asm/nobackups/SMN_hicanu/DEF_test/```
+```
+/net/eichler/vol26/projects/koren_hifi_asm/nobackups/SMN_hicanu/DEF_test/
+```
+
+
+
+
+## SEDEF
+```
+snakemake -k -p -s /path/to/repo/masker.smk -j 200 \
+    --drmaa " -l centos=7 -l h_rt=48:00:00 -l mfree={resources.mem}G -pe serial {threads} -V -cwd -S /bin/bash -w n" \
+    --drmaa-log-dir Masker/logs \
+    sedef \
+    --config fasta=$fasta sample=$sample
+```
+
+Here `$fasta` should point to an indexed fasta file, and `$sample` should be an informative sample name for the run.
+
+

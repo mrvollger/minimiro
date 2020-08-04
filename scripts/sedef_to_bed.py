@@ -21,53 +21,57 @@ def get_color(x):
 
 
 SEDEF_HEADER = "chr1   start1  end1    chr2    start2  end2    name    score   strand1 strand2 max_len aln_len comment aln_len.1 indel_a indel_b alnB    matchB  mismatchB   transitionsB     transversions   fracMatch       fracMatchIndel  jck     k2K     aln_gaps        uppercaseA      uppercaseB      uppercaseMatches        aln_matches  aln_mismatches  aln_gaps.1        aln_gap_bases   cigar   filter_score".strip().split()
-SEDEF_HEADER = "chr1   start1  end1    chr2    start2  end2    name    score   strand1 strand2 max_len aln_len comment indel_a indel_b alnB    matchB  mismatchB   transitionsB     transversions   fracMatch       fracMatchIndel  jck     k2K     aln_gaps        uppercaseA      uppercaseB      uppercaseMatches        aln_matches  aln_mismatches  aln_gaps.1        aln_gap_bases   cigar   filter_score".strip().split()
+SEDEF_HEADER = "chr1   start1  end1    chr2    start2  end2    name    score   strand1 strand2 max_len aln_len comment indel_a indel_b alnB    matchB  mismatchB   transitionsB     transversions   fracMatch       fracMatchIndel  jck     k2K     aln_gaps        uppercaseA      uppercaseB      uppercaseMatches        aln_matches  aln_mismatches  aln_gaps.1        aln_gap_bases   cigar   filter_score    count_ovls      sat_bases       total_bases     sat_coverage".strip().split()
 DROP = ["aln_len.1", "aln_gaps.1", "cigar", "comment"]
-DROP = ["aln_gaps.1", "cigar", "comment"]
+DROP = ["aln_gaps.1", "cigar", "comment",     "count_ovls", "total_bases", "sat_coverage"]
 
 # global var for inputs
 args=None 
 
 if __name__ == "__main__":
-	parser = argparse.ArgumentParser(description="", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-	parser.add_argument("infile", help="positional input")
-	parser.add_argument("output", help="positional input")
-	parser.add_argument("filt", help="positional input")
-	parser.add_argument("-s", "--symetric", help="make sedef output symetric, set to 0 to disable.", default = 1)
-	parser.add_argument("-l", "--minlength", help=" ", type=int, default=1000)
-	parser.add_argument("-i", "--minidentity", help=" ", type=float, default=0.9)
-	parser.add_argument('-d', help="store args.d as true if -d",  action="store_true", default=False)
-	args = parser.parse_args()
-	
-	df =pd.read_csv(args.infile, sep="\t", names=SEDEF_HEADER, header=None, comment="#")
-	df.drop(DROP, axis=1, inplace=True)
-	#print(df.shape, sum( df["aln_gaps.1"] == df["aln_gaps"]), sum(df.aln_len == df["aln_len"]) )
-	df["color"] = df.fracMatch.map(get_color)
-	
-	# make the symetric ones
-	if(args.symetric):
-		df2 = df.copy()
-		df2[["chr1", "start1", "end1"]] = df[["chr2", "start2", "end2"]]
-		df2[["chr2", "start2", "end2"]] = df[["chr1", "start1", "end1"]]
-		df2["strand2"] = df["strand1"]
-		df2["strand1"] = df["strand2"]
-		df = pd.concat([df,df2], ignore_index=True)
+    parser = argparse.ArgumentParser(description="", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument("infile", help="positional input")
+    parser.add_argument("output", help="positional input")
+    parser.add_argument("filt", help="positional input")
+    parser.add_argument("-s", "--symetric", help="make sedef output symetric, set to 0 to disable.", default = 1)
+    parser.add_argument("-l", "--minlength", help=" ", type=int, default=1000)
+    parser.add_argument("-i", "--minidentity", help=" ", type=float, default=0.9)
+    parser.add_argument("--sat", help="Remove dups that are this fraction of sat or more", type=float, default=0.70)
+    parser.add_argument('-d', help="store args.d as true if -d",  action="store_true", default=False)
+    args = parser.parse_args()
 
-	# make bed 9 format for the browser 
-	df.sort_values(by=["chr1", "start1"], inplace=True)
-	bed9 = ["chr1", "start1", "end1", "name", "fakeScore", "strand1", "start1", "end1", "color"]
-	df["name"] = df.chr2 + ":" + df.start2.astype(str) + "-" + df.end2.astype(str)
-	df["fakeScore"] = 0
-	extra = [ col for col in SEDEF_HEADER if col not in bed9 and col not in DROP]
-	df = df[bed9 + extra]
-	df.rename(columns={"chr1":"#chr1"}, inplace=True)
-	
+    df =pd.read_csv(args.infile, sep="\t", names=SEDEF_HEADER, header=None, comment="#")
+    # filter out high sat regions
+    df = df[df.sat_coverage <= args.sat]
 
-	sd = df.loc[(df.aln_len >= args.minlength) & (df.fracMatch >= args.minidentity)] 
-	filt = df.loc[(df.aln_len < args.minlength) | (df.fracMatch < args.minidentity)] 
-	sd.to_csv(args.output, index=False, sep="\t")
-	filt.to_csv(args.filt, index=False, sep="\t")
-	
+    df.drop(DROP, axis=1, inplace=True)
+    #print(df.shape, sum( df["aln_gaps.1"] == df["aln_gaps"]), sum(df.aln_len == df["aln_len"]) )
+    df["color"] = df.fracMatch.map(get_color)
+
+    # make the symetric ones
+    if(args.symetric):
+            df2 = df.copy()
+            df2[["chr1", "start1", "end1"]] = df[["chr2", "start2", "end2"]]
+            df2[["chr2", "start2", "end2"]] = df[["chr1", "start1", "end1"]]
+            df2["strand2"] = df["strand1"]
+            df2["strand1"] = df["strand2"]
+            df = pd.concat([df,df2], ignore_index=True)
+
+    # make bed 9 format for the browser 
+    df.sort_values(by=["chr1", "start1"], inplace=True)
+    bed9 = ["chr1", "start1", "end1", "name", "fakeScore", "strand1", "start1", "end1", "color"]
+    df["name"] = df.chr2 + ":" + df.start2.astype(str) + "-" + df.end2.astype(str)
+    df["fakeScore"] = 0
+    extra = [ col for col in SEDEF_HEADER if col not in bed9 and col not in DROP]
+    df = df[bed9 + extra]
+    df.rename(columns={"chr1":"#chr1"}, inplace=True)
+
+
+    sd = df.loc[(df.aln_len >= args.minlength) & (df.fracMatch >= args.minidentity)] 
+    filt = df.loc[(df.aln_len < args.minlength) | (df.fracMatch < args.minidentity)] 
+    sd.to_csv(args.output, index=False, sep="\t")
+    filt.to_csv(args.filt, index=False, sep="\t")
+
 
 """
 chrom - The name of the chromosome (e.g. chr3, chrY, chr2_random) or scaffold (e.g. scaffold10671).
