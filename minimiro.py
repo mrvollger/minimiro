@@ -35,16 +35,21 @@ parser.add_argument("-n", "--bestn", help="[100]", type=int, default=100)
 parser.add_argument("--start", help="start positioon", type=int, default=0)
 parser.add_argument("-e", "--exclude", nargs="+", help="exclude these conitg names from anlysis", default=[])
 parser.add_argument("-s", "--score", help="threashold for reporting alignments, same as -s in miropeats [100]", type=int, default=100)
+parser.add_argument("-c", "--cigar", help="Tag to search for alignment string [cs]", type=str, default='cs')
 parser.add_argument("-d", "--drop", help="if the alignemnt drops by [score/10] terminate the segment", type=int, default=None)
 args = parser.parse_args()
 if(args.drop is None):
 	args.drop = int(args.score / 10)
 
 # patter for cs string in an alignment
-pattern=re.compile("(:)([0-9]+)|(\*)([a-z][a-z])|([=\+\-])([A-Za-z]+)")
-consume_r = set([":", "*", "-"])
-consume_q = set([":", "*", "+"])
-minus = set(["*", "+", "-"])
+if args.cigar == 'cs':
+	pattern=re.compile("(:)([0-9]+)|(\*)([a-z][a-z])|([=\+\-])([A-Za-z]+)")
+	consume_r = set([":", "*", "-"])
+	consume_q = set([":", "*", "+"])
+else:
+	pattern = re.compile('([0-9]+)([MIDNSHPX=])')
+	consume_r = set(["M", "D", "N", "=", "X"])
+	consume_q = set(["M", "I", "S", "=", "X"])	
 
 # turn cs string inot lsit of tupples 
 def parse_cs(cs):
@@ -55,6 +60,15 @@ def parse_cs(cs):
 		if(match[0] == ":"):
 			match[1] = int(match[1])
 		rtn.append( (match[0], match[1]) )
+	return(rtn)
+
+def parse_cg(cg):
+	rtn = []
+	for match in re.findall(pattern, cs):
+		match = [x for x in match if x!= '']
+		assert len(match) == 2, match
+		match[0] = int(match[0])
+		rtn.append( (match[1], match[0]) )
 	return(rtn)
 
 def high_scoring_segs(hit, cs, q_ctg, q_ctg_len):
@@ -82,23 +96,34 @@ def high_scoring_segs(hit, cs, q_ctg, q_ctg_len):
 	progress = 0
 	for opt, val in cs:
 		progress += 1
-		sys.stderr.write("\rParssing {} to {}: {:.2%}".format(q_ctg, hit.ctg, progress/total ))
+		sys.stderr.write("\rParsing {} to {}: {:.2%}".format(q_ctg, hit.ctg, progress/total ))
 		# length of operation
 		opt_l = 0
-		if(opt == ":"):
-			opt_l = val
-		elif(opt == "*"):
-			opt_l = 1
-		elif(opt in ["-", "+"] ):
-			opt_l = len(val)
-		
-		# iterate over operations
-		for i in range(opt_l):
-			# update score 
+		if args.cigar == 'cs':
 			if(opt == ":"):
-				score += 1
-			else: #elif( opt in minus ):
-				score -= 1
+				opt_l = val
+			elif(opt == "*"):
+				opt_l = 1
+			elif(opt in ["-", "+"] ):
+				opt_l = len(val)
+		else:
+			if (opt in ["=", "M", "I", "D"]):
+				opt_l = val
+			elif (opt == "X"):
+				opt_l = 1
+		# iterate over operations
+		for i in range(opt_l)
+			# update score
+			if args.cigar == 'cs':
+				if(opt == ":"):
+					score += 1
+				else: #elif( opt in minus ):
+					score -= 1
+			else:
+				if(opt in ["=", "M"]):
+					score += 1
+				else:
+					score -= 1
 			
 			# incremen current d segment 
 			if(score >= i_max):
@@ -176,7 +201,7 @@ if(args.paf):
 					pass
 				pd_in[idx].append(token)
 			else:
-				match = re.match("cs:Z:\S+", token)
+				match = re.match(f"{args.cigar}:Z:\S+", token)
 				if(match):
 					pd_in[len(firstcol)].append(token)
 					break
@@ -188,7 +213,7 @@ if(args.paf):
 	
 	#print(paf) 
 	for idx, row in paf.iterrows():
-		cs = re.match("cs:Z:(\S+)", row["cs"])
+		cs = re.match(f"{args.cigar}:Z:(\S+)", row["cs"])
 		assert cs, "Must have cs string, line {}".format(idx+1)
 		cs = parse_cs( cs.groups()[0] )
 		segs += high_scoring_segs(row, cs, row["q_ctg"], row["q_len"] )
@@ -468,7 +493,7 @@ REP_WIDTH = 0.25;
 
 
 # add a scale
-SCALE_WIDTH = 0.1;                                                                                                                                                                                           
+SCALE_WIDTH = 0.1;
 SCALE_BELOW = -0.3;
 SCALE_NUM_BELOW = -.5 #str( SCALE_WIDTH * SCALE_BELOW ) ;
 TICK_WIDTH = 0;
