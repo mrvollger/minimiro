@@ -35,7 +35,7 @@ parser.add_argument("-n", "--bestn", help="[100]", type=int, default=100)
 parser.add_argument("--start", help="start positioon", type=int, default=0)
 parser.add_argument("-e", "--exclude", nargs="+", help="exclude these conitg names from anlysis", default=[])
 parser.add_argument("-s", "--score", help="threashold for reporting alignments, same as -s in miropeats [100]", type=int, default=100)
-parser.add_argument("-c", "--cigar", help="Tag to search for alignment string [cs]", type=str, default='cs')
+parser.add_argument("-c", "--cigar", help="Tag to search for alignment string [cs]", type=str, default='cs', choices=['cs', 'cg'])
 parser.add_argument("-d", "--drop", help="if the alignemnt drops by [score/10] terminate the segment", type=int, default=None)
 args = parser.parse_args()
 if(args.drop is None):
