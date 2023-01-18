@@ -112,7 +112,7 @@ def high_scoring_segs(hit, cs, q_ctg, q_ctg_len):
 			elif (opt == "X"):
 				opt_l = 1
 		# iterate over operations
-		for i in range(opt_l)
+		for i in range(opt_l):
 			# update score
 			if args.cigar == 'cs':
 				if(opt == ":"):
